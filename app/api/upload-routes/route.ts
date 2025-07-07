@@ -72,6 +72,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Branch ID is required" }, { status: 400 })
     }
     
+    // ลบข้อมูลเก่าของสาขานี้ก่อน
+    console.log(`Deleting existing data for branch_id: ${branchId}`)
+    const deleteResult = await query(
+      `DELETE FROM pwamapview.routes WHERE branch_id = $1`,
+      [Number.parseInt(branchId)]
+    )
+    console.log(`Deleted ${deleteResult.rowCount || 0} existing records`)
+    
     let inserted = 0
     let skipped = 0
     let errors = []
@@ -127,10 +135,11 @@ export async function POST(request: NextRequest) {
       status: "success", 
       inserted, 
       skipped,
+      deleted: deleteResult.rowCount || 0,
       total: data.length,
       branchId: branchId,
       errors: errors.length > 0 ? errors.slice(0, 5) : undefined,
-      message: `สำเร็จ: นำเข้า ${inserted} รายการ${skipped > 0 ? `, ข้าม ${skipped} รายการ` : ''}${errors.length > 0 ? `, ข้อผิดพลาด ${errors.length} รายการ` : ''}`
+      message: `สำเร็จ: ลบข้อมูลเก่า ${deleteResult.rowCount || 0} รายการ, นำเข้าใหม่ ${inserted} รายการ${skipped > 0 ? `, ข้าม ${skipped} รายการ` : ''}${errors.length > 0 ? `, ข้อผิดพลาด ${errors.length} รายการ` : ''}`
     })
     
   } catch (error) {
