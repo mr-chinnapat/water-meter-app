@@ -17,6 +17,21 @@ function parseCSV(text: string) {
   })
 }
 
+// ✅ Helper function: แปลง recorddate string เป็น timestamp
+function parseRecordDate(dateStr: string): string | null {
+  if (!dateStr || dateStr.trim() === '') return null
+  
+  try {
+    // Format: "2024-05-01 10:41:51" หรือ "2024-05-01"
+    const trimmed = dateStr.trim()
+    // PostgreSQL สามารถ parse format นี้ได้โดยตรง
+    return trimmed
+  } catch (error) {
+    console.warn('Invalid date format:', dateStr)
+    return null
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     let data
@@ -101,25 +116,42 @@ export async function POST(request: NextRequest) {
         const latitude = row.latitude !== undefined && row.latitude !== null && row.latitude !== "" ? 
           parseFloat(row.latitude.toString()) : null
         
+        // ✅ Parse mtrseq (ถ้ามีใน CSV)
+        const mtrseq = row.mtrseq !== undefined && row.mtrseq !== null && row.mtrseq !== "" ?
+          Number.parseInt(row.mtrseq.toString()) : null
+        
+        // ✅ Parse recorddate เป็น timestamp
+        const recorddate = parseRecordDate(row.recorddate || "")
+        
+        // ✅ Parse status (ถ้ามีใน CSV)
+        const status = (row.status || "").toString().trim() || null
+        
         const insertRow = [
           meterbranch,                                    // meterbranch
           meterbranch,                                    // mtrrdroute
           (row.meterno || "").toString().trim(),          // meterno
           (row.custcode || "").toString().trim(),         // custcode
-          (row.recorddate || "").toString().trim(),       // recorddate
-          (row.custname || "").toString().trim(),         // cusname
-          (row.custaddr || "").toString().trim(),         // cusaddr
+          mtrseq,                                         // mtrseq ✅ เพิ่มใหม่
+          recorddate,                                     // recorddate ✅ เป็น timestamp
+          (row.custname || row.cusname || "").toString().trim(),  // cusname
+          (row.custaddr || row.cusaddr || "").toString().trim(),  // cusaddr
           latitude,                                       // latitude
           longitude,                                      // longitude
           (row.image_url || "").toString().trim(),        // image_url
+          status,                                         // status ✅ เพิ่มใหม่
           Number.parseInt(branchId)                       // branch_id
         ]
         
         console.log("Inserting row:", insertRow)
         
+        // ✅ เพิ่ม mtrseq และ status ใน SQL
         await query(
-          `INSERT INTO pwamapview.routes (meterbranch, mtrrdroute, meterno, custcode, recorddate, cusname, cusaddr, latitude, longitude, image_url, branch_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+          `INSERT INTO pwamapview.routes (
+            meterbranch, mtrrdroute, meterno, custcode, mtrseq, 
+            recorddate, cusname, cusaddr, latitude, longitude, 
+            image_url, status, branch_id
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
           insertRow
         )
         
